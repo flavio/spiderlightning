@@ -4,7 +4,7 @@ pub mod providers;
 use anyhow::Result;
 
 use implementors::{
-    apache_kafka::{PubConfluentApacheKafkaImplementor, SubConfluentApacheKafkaImplementor},
+    // apache_kafka::{PubConfluentApacheKafkaImplementor, SubConfluentApacheKafkaImplementor},
     mosquitto::MosquittoImplementor,
 };
 use slight_common::{impl_resource, BasicState};
@@ -105,7 +105,7 @@ impl pubsub::Pubsub for Pubsub {
         topic: &str,
     ) -> Result<(), Error> {
         match &self_.pub_implementor {
-            PubImplementor::ConfluentApacheKafka(pi) => pi.publish(message, topic)?,
+            // PubImplementor::ConfluentApacheKafka(pi) => pi.publish(message, topic)?,
             PubImplementor::Mosquitto(pi) => pi.publish(message, topic)?,
         };
 
@@ -114,7 +114,7 @@ impl pubsub::Pubsub for Pubsub {
 
     fn sub_subscribe(&mut self, self_: &Self::Sub, topic: &str) -> Result<(), Error> {
         match &self_.sub_implementor {
-            SubImplementor::ConfluentApacheKafka(si) => si.subscribe(topic)?,
+            // SubImplementor::ConfluentApacheKafka(si) => si.subscribe(topic)?,
             SubImplementor::Mosquitto(si) => si.subscribe(topic)?,
         }
 
@@ -123,7 +123,7 @@ impl pubsub::Pubsub for Pubsub {
 
     fn sub_receive(&mut self, self_: &Self::Sub) -> Result<Vec<u8>, Error> {
         Ok(match &self_.sub_implementor {
-            SubImplementor::ConfluentApacheKafka(si) => si.receive()?,
+            // SubImplementor::ConfluentApacheKafka(si) => si.receive()?,
             SubImplementor::Mosquitto(si) => si.receive()?,
         })
     }
@@ -196,16 +196,16 @@ impl SubInner {
 /// As per its' usage in `PubInner`, it must `derive` `Debug`, and `Clone`.
 #[derive(Debug, Clone)]
 enum PubImplementor {
-    ConfluentApacheKafka(PubConfluentApacheKafkaImplementor),
+    // ConfluentApacheKafka(PubConfluentApacheKafkaImplementor),
     Mosquitto(MosquittoImplementor),
 }
 
 impl PubImplementor {
     fn new(pubsub_implementor: &str, slight_state: &BasicState) -> Self {
         match pubsub_implementor {
-            "pubsub.confluent_apache_kafka" => {
-                Self::ConfluentApacheKafka(PubConfluentApacheKafkaImplementor::new(slight_state))
-            }
+            // "pubsub.confluent_apache_kafka" => {
+            //     Self::ConfluentApacheKafka(PubConfluentApacheKafkaImplementor::new(slight_state))
+            // }
             "pubsub.mosquitto" => Self::Mosquitto(MosquittoImplementor::new(slight_state)),
             p => panic!(
                 "failed to match provided name (i.e., '{}') to any known host implementations",
@@ -220,16 +220,16 @@ impl PubImplementor {
 /// As per its' usage in `SubInner`, it must `derive` `Debug`, and `Clone`.
 #[derive(Debug, Clone)]
 enum SubImplementor {
-    ConfluentApacheKafka(SubConfluentApacheKafkaImplementor),
+    // ConfluentApacheKafka(SubConfluentApacheKafkaImplementor),
     Mosquitto(MosquittoImplementor),
 }
 
 impl SubImplementor {
     fn new(pubsub_implementor: &str, slight_state: &BasicState) -> Self {
         match pubsub_implementor {
-            "pubsub.confluent_apache_kafka" => {
-                Self::ConfluentApacheKafka(SubConfluentApacheKafkaImplementor::new(slight_state))
-            }
+            // "pubsub.confluent_apache_kafka" => {
+            //     Self::ConfluentApacheKafka(SubConfluentApacheKafkaImplementor::new(slight_state))
+            // }
             "pubsub.mosquitto" => Self::Mosquitto(MosquittoImplementor::new(slight_state)),
             p => panic!(
                 "failed to match provided name (i.e., '{}') to any known host implementations",

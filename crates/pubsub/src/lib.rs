@@ -212,6 +212,7 @@ impl PubImplementor {
             p => panic!(
                 "failed to match provided name (i.e., '{}') to any known host implementations",
                 p
+            )
         }
     }
 }

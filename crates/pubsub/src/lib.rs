@@ -1,5 +1,7 @@
 mod implementors;
 pub mod providers;
+use std::collections::HashMap;
+
 use anyhow::Result;
 use async_trait::async_trait;
 
@@ -43,15 +45,15 @@ impl_resource!(Pubsub, pubsub::PubsubTables<Pubsub>, PubsubState);
 ///     the `config_type`, and the `config_toml_file_path`).
 #[derive(Clone, Default)]
 pub struct PubsubState {
-    pubsub_implementor: String,
-    slight_state: BasicState,
+    implementor: String,
+    capability_store: HashMap<String, BasicState>,
 }
 
 impl PubsubState {
-    pub fn new(pubsub_implementor: String, slight_state: BasicState) -> Self {
+    pub fn new(implementor: String, capability_store: HashMap<String, BasicState>) -> Self {
         Self {
-            pubsub_implementor,
-            slight_state,
+            implementor,
+            capability_store,
         }
     }
 }
@@ -61,18 +63,17 @@ impl pubsub::Pubsub for Pubsub {
     type Pub = PubInner;
     type Sub = SubInner;
 
-    async fn pub_open(&mut self) -> Result<Self::Pub, Error> {
+    async fn pub_open(&mut self, name: &str) -> Result<Self::Pub, Error> {
         // populate our inner pubsub object w/ the state received from `slight`
         // (i.e., what type of pubsub implementor we are using), and the assigned
         // name of the object.
-        let inner = Self::Pub::new(
-            &self.host_state.pubsub_implementor,
-            &self.host_state.slight_state,
-        )
-        .await;
+        let state = self.host_state.capability_store.get(name).unwrap().clone();
 
-        self.host_state
-            .slight_state
+        tracing::log::info!("Opening implementor {}", &state.implementor);
+
+        let inner = Self::Pub::new(&state.implementor, &state).await;
+
+        state
             .resource_map
             .lock()
             .unwrap()
@@ -81,18 +82,30 @@ impl pubsub::Pubsub for Pubsub {
         Ok(inner)
     }
 
-    async fn sub_open(&mut self) -> Result<Self::Sub, Error> {
+    async fn sub_open(&mut self, name: &str) -> Result<Self::Sub, Error> {
         // populate our inner pubsub object w/ the state received from `slight`
         // (i.e., what type of pubsub implementor we are using), and the assigned
         // name of the object.
-        let inner = Self::Sub::new(
-            &self.host_state.pubsub_implementor,
-            &self.host_state.slight_state,
-        )
-        .await;
+        let state = if let Some(r) = self.host_state.capability_store.get(name) {
+            r.clone()
+        } else if let Some(r) = self
+            .host_state
+            .capability_store
+            .get(&self.host_state.implementor)
+        {
+            r.clone()
+        } else {
+            panic!(
+                "could not find capability under name '{}' for implementor '{}'",
+                name, &self.host_state.implementor
+            );
+        };
 
-        self.host_state
-            .slight_state
+        tracing::log::info!("Opening implementor {}", &state.implementor);
+
+        let inner = Self::Sub::new(&state.implementor, &state).await;
+
+        state
             .resource_map
             .lock()
             .unwrap()
@@ -109,7 +122,7 @@ impl pubsub::Pubsub for Pubsub {
     ) -> Result<(), Error> {
         match &self_.pub_implementor {
             // PubImplementor::ConfluentApacheKafka(pi) => pi.publish(message, topic)?,
-            PubImplementor::Mosquitto(pi) => pi.publish(message, topic)?,
+            PubImplementor::Mosquitto(pi) => pi.publish(message, topic).await?,
         };
 
         Ok(())
@@ -127,7 +140,7 @@ impl pubsub::Pubsub for Pubsub {
     async fn sub_receive(&mut self, self_: &Self::Sub) -> Result<Vec<u8>, Error> {
         Ok(match &self_.sub_implementor {
             // SubImplementor::ConfluentApacheKafka(si) => si.receive().await?,
-            SubImplementor::Mosquitto(si) => si.receive()?,
+            SubImplementor::Mosquitto(si) => si.receive().await?,
         })
     }
 }
@@ -206,9 +219,10 @@ enum PubImplementor {
 impl PubImplementor {
     async fn new(pubsub_implementor: &str, slight_state: &BasicState) -> Self {
         match pubsub_implementor {
-            // "pubsub.confluent_apache_kafka" => {
-            //     Self::ConfluentApacheKafka(PubConfluentApacheKafkaImplementor::new(slight_state))
-            // }
+            // "pubsub.confluent_apache_kafka" => Self::ConfluentApacheKafka(
+            //     PubConfluentApacheKafkaImplementor::new(slight_state).await,
+            // ),
+            "pubsub.mosquitto" => Self::Mosquitto(MosquittoImplementor::new(slight_state).await),
             p => panic!(
                 "failed to match provided name (i.e., '{}') to any known host implementations",
                 p

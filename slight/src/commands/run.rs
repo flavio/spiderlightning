@@ -37,10 +37,11 @@ pub async fn handle_run(module: impl AsRef<Path>, toml_file_path: impl AsRef<Pat
     tracing::info!("Starting slight");
 
     let resource_map = Arc::new(Mutex::new(StateTable::default()));
-
+    log::info!("Starting build");
     let host_builder = build_store_instance(&toml, &toml_file_path, resource_map.clone(), &module)?;
+    
     let (mut store, instance) = host_builder.build().await?;
-
+    log::info!("Finished build");
     let caps = toml.capability.as_ref().unwrap();
 
     // looking for the events and http capabilities.
@@ -61,6 +62,9 @@ pub async fn handle_run(module: impl AsRef<Path>, toml_file_path: impl AsRef<Pat
         bail!("unsupported toml spec version");
     }
 
+    log::info!("events_enabled: {}", events_enabled);
+    log::info!("http_enabled: {}", http_enabled);
+
     if events_enabled {
         log::debug!("Events capability enabled");
         let guest_builder =
@@ -76,7 +80,8 @@ pub async fn handle_run(module: impl AsRef<Path>, toml_file_path: impl AsRef<Pat
         let http_api_resource: &mut Http<Builder> = get_resource(&mut store, "http");
         http_api_resource.update_state(slight_common::Builder::new(guest_builder))?;
     }
-
+    
+    log::info!("Starting instance");
     instance
         .get_typed_func::<(), _, _>(&mut store, "_start")?
         .call_async(&mut store, ())
@@ -88,6 +93,7 @@ pub async fn handle_run(module: impl AsRef<Path>, toml_file_path: impl AsRef<Pat
         let http_api_resource: &mut Http<Builder> = get_resource(&mut store, "http");
         http_api_resource.close();
     }
+    log::info!("exiting");
     Ok(())
 }
 
